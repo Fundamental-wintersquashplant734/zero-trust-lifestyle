@@ -1,0 +1,50 @@
+# Sensitive data directories
+data/
+logs/
+reports/
+
+# Configuration files with secrets
+config/config.sh
+config/focus_blocklist.txt
+
+# Encrypted databases
+*.enc
+
+# API keys and tokens
+*.key
+*.token
+.env
+
+# Consent and monitoring records
+*consent.txt
+*surveillance*.enc
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Editor specific
+.vscode/
+.idea/
+*.sublime-*
+
+# Backup files
+*.bak
+*.backup
+
+# Log files
+*.log
+
+# Test/debug scripts
+tests/
+
+# Workspace artifacts
+repomix-output.xml
+notes.txt
