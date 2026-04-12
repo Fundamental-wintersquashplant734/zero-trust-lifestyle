@@ -54,8 +54,18 @@ add_sockpuppet() {
 
     local tmp_file=$(mktemp)
 
-    # Encrypt password
-    local encrypted_pass=$(echo "$password" | openssl enc -aes-256-cbc -a -salt -pass pass:"$(get_machine_id)" 2>/dev/null)
+    # Encrypt password via the shared encrypt_data helper (fd:3, ENCRYPTION_PASSWORD).
+    # base64 the ciphertext so it round-trips through JSON.
+    local tmp_enc
+    tmp_enc=$(mktemp)
+    if ! encrypt_data "$password" "$tmp_enc"; then
+        rm -f "$tmp_enc" "$tmp_file"
+        log_error "Failed to encrypt sockpuppet password — is ENCRYPTION_PASSWORD set?"
+        return 1
+    fi
+    local encrypted_pass
+    encrypted_pass=$(base64 < "$tmp_enc" | tr -d '\n')
+    rm -f "$tmp_enc"
 
     jq --arg platform "$platform" \
        --arg username "$username" \
@@ -110,7 +120,11 @@ update_last_activity() {
 
 decrypt_password() {
     local encrypted=$1
-    echo "$encrypted" | openssl enc -aes-256-cbc -d -a -pass pass:"$(get_machine_id)" 2>/dev/null
+    local tmp_enc
+    tmp_enc=$(mktemp)
+    printf '%s' "$encrypted" | base64 -d > "$tmp_enc" 2>/dev/null
+    decrypt_data "$tmp_enc"
+    rm -f "$tmp_enc"
 }
 
 #=============================================================================
@@ -182,13 +196,12 @@ generate_chrome_options() {
     local user_agent=$1
     local proxy=${2:-}
 
+    # Do NOT pass --no-sandbox / --disable-setuid-sandbox / --disable-web-security:
+    # those turn off the Chrome sandbox and same-origin policy, which is unacceptable
+    # for a tool that types real credentials into web pages.
     local options=(
         "--disable-blink-features=AutomationControlled"
         "--disable-dev-shm-usage"
-        "--no-sandbox"
-        "--disable-setuid-sandbox"
-        "--disable-web-security"
-        "--disable-features=IsolateOrigins,site-per-process"
         "--user-agent=$user_agent"
     )
 
@@ -237,10 +250,27 @@ twitter_login() {
 
     log_info "Logging into Twitter as $username"
 
-    # Python script for Selenium automation
-    python3 - <<PYTHON
-import time
+    # Build the Chrome options list OUTSIDE the heredoc. The heredoc is quoted
+    # below, so no bash expansion happens inside — credentials and options are
+    # passed in via environment variables and read with os.environ. This closes
+    # the previous injection hole where $username / $password were interpolated
+    # directly into the Python source (a crafted value broke out of the string).
+    local options_json
+    options_json=$(generate_chrome_options "$user_agent" "$proxy" | jq -R . | jq -s .)
+
+    ZT_USERNAME="$username" \
+    ZT_PASSWORD="$password" \
+    ZT_OPTIONS_JSON="$options_json" \
+    ZT_MIN_ACTIONS="$MIN_ACTIONS" \
+    ZT_MAX_ACTIONS="$MAX_ACTIONS" \
+    ZT_MIN_DELAY="$MIN_DELAY" \
+    ZT_MAX_DELAY="$MAX_DELAY" \
+    python3 - <<'PYTHON'
+import json
+import os
 import random
+import time
+
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
@@ -248,57 +278,59 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 options = Options()
-$(generate_chrome_options "$user_agent" "$proxy" | sed 's/^/options.add_argument("/;s/$/")/')
+for arg in json.loads(os.environ["ZT_OPTIONS_JSON"]):
+    options.add_argument(arg)
 
+username = os.environ["ZT_USERNAME"]
+password = os.environ["ZT_PASSWORD"]
+min_actions = int(os.environ["ZT_MIN_ACTIONS"])
+max_actions = int(os.environ["ZT_MAX_ACTIONS"])
+min_delay = int(os.environ["ZT_MIN_DELAY"])
+max_delay = int(os.environ["ZT_MAX_DELAY"])
+
+driver = None
 try:
     driver = webdriver.Chrome(options=options)
     driver.get("https://twitter.com/login")
-
-    # Wait and login
     time.sleep(random.uniform(2, 4))
 
     username_input = WebDriverWait(driver, 10).until(
         EC.presence_of_element_located((By.NAME, "text"))
     )
-    username_input.send_keys("${username}")
+    username_input.send_keys(username)
     username_input.submit()
 
     time.sleep(random.uniform(2, 4))
-
     password_input = WebDriverWait(driver, 10).until(
         EC.presence_of_element_located((By.NAME, "password"))
     )
-    password_input.send_keys("${password}")
+    password_input.send_keys(password)
     password_input.submit()
 
     time.sleep(random.uniform(3, 6))
 
-    # Perform random actions
-    actions = ${MAX_ACTIONS}
-    for i in range(random.randint(${MIN_ACTIONS}, actions)):
-        action = random.choice(['like', 'retweet', 'scroll'])
-
-        if action == 'scroll':
+    for _ in range(random.randint(min_actions, max_actions)):
+        action = random.choice(["like", "retweet", "scroll"])
+        if action == "scroll":
             driver.execute_script("window.scrollBy(0, 500)")
-        elif action == 'like':
+        elif action == "like":
             try:
                 like_buttons = driver.find_elements(By.CSS_SELECTOR, '[data-testid="like"]')
                 if like_buttons:
                     random.choice(like_buttons[:3]).click()
-            except:
+            except Exception:
                 pass
+        time.sleep(random.uniform(min_delay, max_delay))
 
-        time.sleep(random.uniform(${MIN_DELAY}, ${MAX_DELAY}))
-
-    driver.quit()
     print("SUCCESS")
-
 except Exception as e:
     print(f"ERROR: {e}")
-    try:
-        driver.quit()
-    except:
-        pass
+finally:
+    if driver is not None:
+        try:
+            driver.quit()
+        except Exception:
+            pass
 PYTHON
 }
 
