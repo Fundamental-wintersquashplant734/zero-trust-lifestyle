@@ -31,14 +31,42 @@ mkdir -p "$DATA_DIR" "$LOG_DIR" "$REPORTS_DIR"
 LOG_FILE="$LOG_DIR/$(basename "$0" .sh)_$(date +%Y%m%d).log"
 VERBOSE=${VERBOSE:-0}
 
-# Load configuration if exists
-if [[ -f "$CONFIG_FILE" ]]; then
+# Load configuration — refuse to source if the file is writable by group/other
+# or owned by a different user (co-tenant could otherwise plant shell commands).
+_safe_source_config() {
+    local f=$1
+    if [[ ! -f "$f" ]]; then
+        echo -e "${YELLOW}⚠️  Warning: Config file not found at $f${NC}"
+        echo -e "   Run: cp $PROJECT_ROOT/config/config.example.sh $f"
+        return 0
+    fi
+
+    # stat portability: Linux vs BSD/macOS
+    local owner mode
+    if stat -c '%u %a' "$f" >/dev/null 2>&1; then
+        read -r owner mode < <(stat -c '%u %a' "$f")
+    else
+        read -r owner mode < <(stat -f '%u %Lp' "$f")
+    fi
+
+    if [[ "$owner" != "$(id -u)" && "$owner" != "0" ]]; then
+        echo "REFUSING to source $f: not owned by current user or root" >&2
+        return 1
+    fi
+
+    # Mode must have no group/other write bits. Check the last two octal digits.
+    local last_two="${mode: -2}"
+    local group_digit="${last_two:0:1}"
+    local other_digit="${last_two:1:1}"
+    if [[ "$group_digit" =~ [2367] ]] || [[ "$other_digit" =~ [2367] ]]; then
+        echo "REFUSING to source $f: group/other write bit set (mode $mode). Run: chmod 600 $f" >&2
+        return 1
+    fi
+
     # shellcheck source=/dev/null
-    source "$CONFIG_FILE"
-else
-    echo -e "${YELLOW}⚠️  Warning: Config file not found at $CONFIG_FILE${NC}"
-    echo -e "   Run: cp $PROJECT_ROOT/config/config.example.sh $CONFIG_FILE"
-fi
+    source "$f"
+}
+_safe_source_config "$CONFIG_FILE" || exit 1
 
 #=============================================================================
 # Logging Functions

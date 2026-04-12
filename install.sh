@@ -162,10 +162,14 @@ setup_config() {
 
     if [[ ! -f "$SCRIPT_DIR/config/config.sh" ]]; then
         cp "$SCRIPT_DIR/config/config.example.sh" "$SCRIPT_DIR/config/config.sh"
-        log_success "Created config.sh from example"
+        # Config contains secrets (tokens, passwords) — keep it user-only.
+        chmod 600 "$SCRIPT_DIR/config/config.sh"
+        log_success "Created config.sh from example (mode 600)"
         log_warn "Please edit config/config.sh with your settings"
     else
-        log_info "config.sh already exists, skipping"
+        # Ensure existing config is not world/group readable.
+        chmod 600 "$SCRIPT_DIR/config/config.sh"
+        log_info "config.sh already exists, tightened perms to 600"
     fi
 }
 
