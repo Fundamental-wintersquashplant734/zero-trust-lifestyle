@@ -18,7 +18,16 @@ source "$SCRIPT_DIR/../lib/common.sh"
 FOCUS_DB="$DATA_DIR/focus_data.json"
 FOCUS_SESSION="$DATA_DIR/current_focus.json"
 BLOCKLIST="$CONFIG_DIR/focus_blocklist.txt"
-HOSTS_BACKUP="/tmp/hosts.backup"
+
+# State files live under $DATA_DIR (mode 700, user-owned), not /tmp.
+# /tmp is shared — a malicious symlink there would let another local user
+# redirect our sudo /etc/hosts backup or trick `kill` into killing
+# unrelated processes.
+HOSTS_BACKUP="$DATA_DIR/.hosts.backup"
+MONITOR_PID_FILE="$DATA_DIR/.focus_monitor.pid"
+INHIBIT_PID_FILE="$DATA_DIR/.focus_inhibit.pid"
+CAFFEINATE_PID_FILE="$DATA_DIR/.focus_caffeinate.pid"
+WALLPAPER_FILE="$DATA_DIR/.focus_wallpaper.png"
 
 # Focus levels
 FOCUS_GENTLE=1
@@ -174,7 +183,7 @@ EOF
     # Start monitoring if nuclear
     if [[ $level -ge $FOCUS_NUCLEAR ]]; then
         monitor_focus_session &
-        echo $! > /tmp/focus_monitor.pid
+        echo $! > $MONITOR_PID_FILE
     fi
 }
 
@@ -197,10 +206,10 @@ stop_focus_session() {
     remove_focus_mode "$level"
 
     # Stop monitoring
-    if [[ -f /tmp/focus_monitor.pid ]]; then
-        local pid=$(cat /tmp/focus_monitor.pid)
+    if [[ -f $MONITOR_PID_FILE ]]; then
+        local pid=$(cat $MONITOR_PID_FILE)
         kill "$pid" 2>/dev/null || true
-        rm /tmp/focus_monitor.pid
+        rm $MONITOR_PID_FILE
     fi
 
     # Record session
@@ -354,9 +363,12 @@ block_websites() {
 
     init_blocklist
 
-    # Backup hosts file
-    if [[ -f /etc/hosts ]] && [[ ! -f "$HOSTS_BACKUP" ]]; then
-        sudo cp /etc/hosts "$HOSTS_BACKUP"
+    # Backup hosts file into $DATA_DIR (user-owned, mode 700). /etc/hosts is
+    # world-readable, so no sudo is needed for the copy. install(1) refuses to
+    # follow a symlink at the destination, killing the old /tmp symlink-race.
+    if [[ -f /etc/hosts ]] && [[ ! -e "$HOSTS_BACKUP" ]]; then
+        install -m 600 /etc/hosts "$HOSTS_BACKUP" 2>/dev/null || cp /etc/hosts "$HOSTS_BACKUP"
+        chmod 600 "$HOSTS_BACKUP"
     fi
 
     log_info "Blocking distracting websites..."
@@ -562,7 +574,7 @@ set_nuclear_wallpaper() {
     log_info "Setting FOCUS MODE wallpaper..."
 
     local wallpaper_text="FOCUS MODE ACTIVE\n\nNO DISTRACTIONS\nGET WORK DONE"
-    local wallpaper="/tmp/focus_wallpaper.png"
+    local wallpaper="$WALLPAPER_FILE"
 
     # Create simple wallpaper with ImageMagick if available
     if command -v convert &> /dev/null; then
@@ -621,27 +633,27 @@ lockdown_system() {
     # Prevent system sleep
     if command -v systemd-inhibit &> /dev/null; then
         systemd-inhibit --what=sleep --who="focus-mode" --why="Focus session active" &
-        echo $! > /tmp/focus_inhibit.pid
+        echo $! > $INHIBIT_PID_FILE
     fi
 
     # macOS
     if command -v caffeinate &> /dev/null; then
         caffeinate -d &
-        echo $! > /tmp/focus_caffeinate.pid
+        echo $! > $CAFFEINATE_PID_FILE
     fi
 }
 
 unlock_system() {
     log_info "Unlocking system..."
 
-    if [[ -f /tmp/focus_inhibit.pid ]]; then
-        kill "$(cat /tmp/focus_inhibit.pid)" 2>/dev/null || true
-        rm /tmp/focus_inhibit.pid
+    if [[ -f $INHIBIT_PID_FILE ]]; then
+        kill "$(cat $INHIBIT_PID_FILE)" 2>/dev/null || true
+        rm $INHIBIT_PID_FILE
     fi
 
-    if [[ -f /tmp/focus_caffeinate.pid ]]; then
-        kill "$(cat /tmp/focus_caffeinate.pid)" 2>/dev/null || true
-        rm /tmp/focus_caffeinate.pid
+    if [[ -f $CAFFEINATE_PID_FILE ]]; then
+        kill "$(cat $CAFFEINATE_PID_FILE)" 2>/dev/null || true
+        rm $CAFFEINATE_PID_FILE
     fi
 }
 
@@ -994,9 +1006,9 @@ emergency_override() {
     fi
 
     # Kill monitor
-    if [[ -f /tmp/focus_monitor.pid ]]; then
-        kill "$(cat /tmp/focus_monitor.pid)" 2>/dev/null || true
-        rm /tmp/focus_monitor.pid
+    if [[ -f $MONITOR_PID_FILE ]]; then
+        kill "$(cat $MONITOR_PID_FILE)" 2>/dev/null || true
+        rm $MONITOR_PID_FILE
     fi
 
     # Restore everything
@@ -1072,6 +1084,16 @@ EOF
 # Main
 #=============================================================================
 
+_focus_cleanup() {
+    # If a session is active when the script exits (Ctrl-C, kill, crash),
+    # restore /etc/hosts, apps, notifications, and wallpaper so the user
+    # isn't locked out of their system.
+    [[ -f "$FOCUS_SESSION" ]] || return 0
+    local level
+    level=$(jq -r '.level // 1' "$FOCUS_SESSION" 2>/dev/null || echo 1)
+    remove_focus_mode "$level" 2>/dev/null || true
+}
+
 main() {
     local command=${1:-"dashboard"}
     shift || true
@@ -1082,6 +1104,8 @@ main() {
     # Initialize
     init_focus_db
     init_blocklist
+
+    trap _focus_cleanup EXIT INT TERM
 
     case $command in
         start)
