@@ -4,7 +4,7 @@
 # Sets up environment, dependencies, and configurations
 #=============================================================================
 
-set -e
+set -euo pipefail
 
 # Require Bash 4+ for associative arrays (macOS ships 3.2 by default)
 if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
@@ -141,9 +141,9 @@ setup_directories() {
     mkdir -p "$SCRIPT_DIR/logs"
     mkdir -p "$SCRIPT_DIR/config"
 
-    # Set permissions
+    # Set permissions — logs may contain sensitive script output, keep user-only.
     chmod 700 "$SCRIPT_DIR/data"
-    chmod 755 "$SCRIPT_DIR/logs"
+    chmod 700 "$SCRIPT_DIR/logs"
 
     log_success "Directories created"
 }
