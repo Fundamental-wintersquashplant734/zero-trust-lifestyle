@@ -1,0 +1,6 @@
+# Exclude noisy/irrelevant checks repo-wide
+# SC1091: don't try to follow sourced files (lib/common.sh path is dynamic)
+# SC2155: allow `local x=$(...)` — widespread pattern in this codebase
+# SC2181: allow `$?` pattern
+disable=SC1091,SC2155,SC2181
+external-sources=false

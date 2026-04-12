@@ -1,44 +1,35 @@
-name: CI - Syntax & Smoke Tests
+name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
-    branches: [master]
+    branches: [main]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: ShellCheck
+        run: make shellcheck
+
   syntax-and-smoke:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y jq curl bc
+      - name: Lint + smoke
+        run: make lint test
 
-      - name: Syntax check scripts/*.sh
-        run: |
-          for f in scripts/*.sh; do
-            echo "Checking syntax: $f"
-            bash -n "$f"
-          done
-
-      - name: Syntax check lib/*.sh
-        run: |
-          for f in lib/*.sh; do
-            echo "Checking syntax: $f"
-            bash -n "$f"
-          done
-
-      - name: Smoke test --help for scripts/*.sh
-        run: |
-          for f in scripts/*.sh; do
-            echo "Running --help: $f"
-            bash "$f" --help
-            exit_code=$?
-            if [ $exit_code -ne 0 ] && [ $exit_code -ne 1 ]; then
-              echo "FAIL: $f exited with code $exit_code"
-              exit 1
-            fi
-          done
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y jq curl bc bats openssl
+      - name: Run bats tests
+        run: make bats
