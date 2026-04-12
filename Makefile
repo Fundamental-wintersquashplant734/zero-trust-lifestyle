@@ -14,8 +14,8 @@ shellcheck:
 		echo "shellcheck not installed — skipping (install: apt install shellcheck)"; \
 		exit 0; \
 	fi
-	@shellcheck -x -S error $(SCRIPTS)
-	@echo "ShellCheck (errors) passed."
+	@shellcheck -x -S warning $(SCRIPTS)
+	@echo "ShellCheck (warnings) passed."
 
 test:
 	@for f in scripts/*.sh; do \

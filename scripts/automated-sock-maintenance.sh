@@ -388,7 +388,7 @@ generic_platform_activity() {
     log_info "Would perform maintenance for $username ($persona persona)"
 
     # Placeholder - extend with actual automation
-    sleep $(generate_random_delay "$MIN_DELAY" "$MAX_DELAY")
+    sleep "$(generate_random_delay "$MIN_DELAY" "$MAX_DELAY")"
 }
 
 #=============================================================================

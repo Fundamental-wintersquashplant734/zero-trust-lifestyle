@@ -1,6 +1,15 @@
-# Exclude noisy/irrelevant checks repo-wide
-# SC1091: don't try to follow sourced files (lib/common.sh path is dynamic)
-# SC2155: allow `local x=$(...)` — widespread pattern in this codebase
-# SC2181: allow `$?` pattern
-disable=SC1091,SC2155,SC2181
+# Exclude noisy/irrelevant checks repo-wide.
+#
+# SC1091 — don't follow dynamic sourced files (lib/common.sh path is resolved at runtime).
+# SC2155 — allow `local x=$(...)` (widespread idiom; cost is visible).
+# SC2181 — allow `$?` pattern (widespread idiom).
+# SC2034 — config variables in scripts are read via shell-source, shellcheck
+#          can't see their uses. Most of the repo's SC2034 hits are this.
+# SC2120 — functions that reference $1 with defaults trip this even when
+#          arguments are optional by design.
+# SC2128 / SC2178 — plural-named string variables (e.g. `findings`, `interests`)
+#          hold jq-produced JSON strings, not bash arrays. False positive for
+#          how this codebase uses them.
+# SC2254 — unquoted `case $x in` patterns where $x is a known integer constant.
+disable=SC1091,SC2155,SC2181,SC2034,SC2120,SC2128,SC2178,SC2254
 external-sources=false

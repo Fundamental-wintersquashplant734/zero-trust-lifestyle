@@ -139,7 +139,10 @@ analyze_github() {
     local github_score=0
 
     # Account age (max 20 points)
-    local account_age_days=$(( ($(date +%s) - $(date -d "$created_at" +%s 2>/dev/null || echo $(date +%s))) / 86400 ))
+    local now created_epoch
+    now=$(date +%s)
+    created_epoch=$(date -d "$created_at" +%s 2>/dev/null || echo "$now")
+    local account_age_days=$(( (now - created_epoch) / 86400 ))
     if [[ $account_age_days -gt 365 ]]; then
         github_score=$((github_score + 20))
     elif [[ $account_age_days -gt 180 ]]; then
