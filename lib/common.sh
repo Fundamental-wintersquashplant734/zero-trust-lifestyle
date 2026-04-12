@@ -237,38 +237,41 @@ is_public_network() {
 # Data Storage (Encrypted)
 #=============================================================================
 
+# Resolve and validate the encryption password (no machine-id fallback).
+# Callers MUST set ENCRYPTION_PASSWORD in config/config.sh or the environment.
+_get_encryption_password() {
+    if [[ -z "${ENCRYPTION_PASSWORD:-}" ]]; then
+        echo "ERROR: ENCRYPTION_PASSWORD is not set. Set it in config/config.sh (use a strong secret)." >&2
+        return 1
+    fi
+    printf '%s' "$ENCRYPTION_PASSWORD"
+}
+
 encrypt_data() {
     local input=$1
     local output=$2
-    local password=${ENCRYPTION_PASSWORD:-$(get_machine_id)}
+    local password
+    password=$(_get_encryption_password) || return 1
 
-    echo "$input" | openssl enc -aes-256-cbc -salt -pbkdf2 -pass pass:"$password" -out "$output" 2>/dev/null
+    # Pass key via fd:3 so it never appears in /proc/*/cmdline.
+    printf '%s' "$input" | openssl enc -aes-256-cbc -salt -pbkdf2 \
+        -iter 200000 -pass fd:3 -out "$output" 2>/dev/null 3<<<"$password"
 }
 
 decrypt_data() {
     local input=$1
-    local password=${ENCRYPTION_PASSWORD:-$(get_machine_id)}
+    local password
+    password=$(_get_encryption_password) || return 1
 
-    openssl enc -aes-256-cbc -d -pbkdf2 -pass pass:"$password" -in "$input" 2>/dev/null
+    openssl enc -aes-256-cbc -d -pbkdf2 -iter 200000 \
+        -pass fd:3 -in "$input" 2>/dev/null 3<<<"$password"
 }
 
+# Deprecated: retained only so any downstream caller gets a clear error instead
+# of silently deriving a world-readable key from /etc/machine-id.
 get_machine_id() {
-    # Get a unique machine identifier for encryption
-    if [[ -f /etc/machine-id ]]; then
-        cat /etc/machine-id
-    elif [[ -f /var/lib/dbus/machine-id ]]; then
-        cat /var/lib/dbus/machine-id
-    else
-        # Fallback to hostname + user (cross-platform)
-        local raw="$(hostname)-$(whoami)"
-        if command -v md5sum &> /dev/null; then
-            echo "$raw" | md5sum | cut -d' ' -f1
-        elif command -v md5 &> /dev/null; then
-            echo "$raw" | md5 -q
-        else
-            echo "$raw" | shasum -a 256 | cut -d' ' -f1
-        fi
-    fi
+    echo "ERROR: get_machine_id() is removed. Use ENCRYPTION_PASSWORD explicitly." >&2
+    return 1
 }
 
 store_secret() {
@@ -454,7 +457,10 @@ export -f die check_command check_commands
 export -f notify send_alert
 export -f check_internet check_vpn get_public_ip check_dns_leak
 export -f get_network_ssid is_public_network
-export -f encrypt_data decrypt_data get_machine_id store_secret get_secret
+# Intentionally NOT exporting encrypt_data/decrypt_data/get_machine_id/store_secret/get_secret.
+# Exported functions pollute every child process's environment and make the crypto
+# path reachable from scripts that never sourced lib/common.sh directly. Scripts
+# that need them must `source lib/common.sh` explicitly.
 export -f rate_limit http_get
 export -f ask_yes_no dry_run_execute
 export -f timestamp human_time_diff generate_random_delay

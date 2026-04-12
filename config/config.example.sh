@@ -11,7 +11,10 @@
 # Enable verbose logging (0=off, 1=on)
 VERBOSE=0
 
-# Encryption password (leave empty to use machine ID)
+# REQUIRED: strong secret used to derive the encryption key for data/.secrets.enc.
+# Generate with: openssl rand -base64 48
+# Losing this value means losing access to everything in data/.secrets.enc.
+# Never commit the real value.
 ENCRYPTION_PASSWORD=""
 
 #-----------------------------------------------------------------------------
