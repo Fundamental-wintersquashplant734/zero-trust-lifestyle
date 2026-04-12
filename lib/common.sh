@@ -151,7 +151,16 @@ send_alert() {
 
     # Send to configured alert methods
     if [[ -n "${ALERT_EMAIL:-}" ]]; then
-        echo "$message" | mail -s "Security Alert" "$ALERT_EMAIL" 2>/dev/null || true
+        # Strip CR/LF from the recipient and message body to kill header
+        # injection. Validate the address shape before handing it to mail(1).
+        local safe_email safe_msg
+        safe_email=$(printf '%s' "$ALERT_EMAIL" | tr -d '\r\n')
+        safe_msg=$(printf '%s' "$message" | tr -d '\r')
+        if [[ "$safe_email" =~ ^[[:alnum:]._%+-]+@[[:alnum:].-]+\.[[:alpha:]]{2,}$ ]]; then
+            printf '%s\n' "$safe_msg" | mail -s "Security Alert" "$safe_email" 2>/dev/null || true
+        else
+            log_warn "ALERT_EMAIL is malformed, skipping email notification"
+        fi
     fi
 
     if [[ -n "${ALERT_WEBHOOK:-}" ]]; then
@@ -374,6 +383,18 @@ http_get() {
     local url=$1
     local max_retries=${2:-3}
     local retry_count=0
+
+    # Reject URLs with CR/LF (header-injection into curl) and non-http(s)
+    # schemes (file://, gopher://, etc. can read local files or hit
+    # non-HTTP services).
+    if [[ "$url" == *$'\r'* || "$url" == *$'\n'* ]]; then
+        log_error "http_get: refusing URL with control characters"
+        return 1
+    fi
+    if [[ "$url" != http://* && "$url" != https://* ]]; then
+        log_error "http_get: refusing non-http(s) URL: $url"
+        return 1
+    fi
 
     while [[ $retry_count -lt $max_retries ]]; do
         local response=$(curl -s -w "\n%{http_code}" "$url" 2>/dev/null)
