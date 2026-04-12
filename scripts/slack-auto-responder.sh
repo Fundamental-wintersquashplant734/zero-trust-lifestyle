@@ -29,7 +29,7 @@ fi
 
 RESPONSE_DB="$DATA_DIR/slack_responses.json"
 RESPONSE_CACHE="$DATA_DIR/slack_response_cache.json"
-STATE_FILE="$DATA_DIR/slack_auto_responder_state"
+STATE_FILE="$DATA_DIR/slack_auto_responder_state.json"
 
 # Delay range (in seconds)
 MIN_DELAY=60        # 1 minute
@@ -42,31 +42,45 @@ SPAM_PREVENTION_WINDOW=3600  # 1 hour
 OFFICE_HOURS_START=9
 OFFICE_HOURS_END=18
 
-# Load state from file or use defaults
-load_state() {
-    if [[ -f "$STATE_FILE" ]]; then
-        source "$STATE_FILE"
-    fi
-}
-
-save_state() {
-    cat > "$STATE_FILE" << EOF
-AUTO_RESPOND_ENABLED=$AUTO_RESPOND_ENABLED
-OFFICE_HOURS_ONLY=$OFFICE_HOURS_ONLY
-DETECT_URGENCY=$DETECT_URGENCY
-DETECT_ACTIVITY=$DETECT_ACTIVITY
-EOF
-}
-
-# Load saved state
-load_state
-
-# Enable/disable features (defaults if no state file)
+# Enable/disable features — defaults before we load state.
 AUTO_RESPOND_ENABLED=${AUTO_RESPOND_ENABLED:-1}
 OFFICE_HOURS_ONLY=${OFFICE_HOURS_ONLY:-0}
 DETECT_URGENCY=${DETECT_URGENCY:-1}
 DETECT_ACTIVITY=${DETECT_ACTIVITY:-1}
 NO_DELAY=${NO_DELAY:-0}
+
+# Migrate away from the legacy shell-sourced state file. Sourcing it was
+# a shell-execution sink for anything that could write to $DATA_DIR.
+_legacy_state="$DATA_DIR/slack_auto_responder_state"
+if [[ -f "$_legacy_state" ]]; then
+    rm -f "$_legacy_state"
+fi
+unset _legacy_state
+
+# Load state as validated JSON — never source shell from disk.
+load_state() {
+    [[ -f "$STATE_FILE" ]] || return 0
+    AUTO_RESPOND_ENABLED=$(jq -r '(.auto_respond_enabled // 1) | tonumber' "$STATE_FILE" 2>/dev/null || echo 1)
+    OFFICE_HOURS_ONLY=$(jq -r '(.office_hours_only // 0) | tonumber' "$STATE_FILE" 2>/dev/null || echo 0)
+    DETECT_URGENCY=$(jq -r '(.detect_urgency // 1) | tonumber' "$STATE_FILE" 2>/dev/null || echo 1)
+    DETECT_ACTIVITY=$(jq -r '(.detect_activity // 1) | tonumber' "$STATE_FILE" 2>/dev/null || echo 1)
+}
+
+save_state() {
+    local tmp
+    tmp=$(mktemp "${STATE_FILE}.XXXXXX")
+    jq -n \
+        --argjson ar "$AUTO_RESPOND_ENABLED" \
+        --argjson oh "$OFFICE_HOURS_ONLY" \
+        --argjson du "$DETECT_URGENCY" \
+        --argjson da "$DETECT_ACTIVITY" \
+        '{auto_respond_enabled:$ar, office_hours_only:$oh, detect_urgency:$du, detect_activity:$da}' \
+        > "$tmp"
+    mv "$tmp" "$STATE_FILE"
+    chmod 600 "$STATE_FILE"
+}
+
+load_state
 
 #=============================================================================
 # Response Templates
