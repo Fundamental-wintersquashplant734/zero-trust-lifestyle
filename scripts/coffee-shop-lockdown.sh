@@ -45,6 +45,15 @@ SHOW_WARNING=${SHOW_WARNING:-1}
 CHECK_INTERVAL=10  # Check network every 10 seconds
 LOCKDOWN_ACTIVE=0
 
+# Strip characters that have meaning in osascript/zenity/shell.
+# WiFi SSIDs are attacker-controlled (anyone can broadcast). An SSID
+# containing AppleScript quoting used to escape into `osascript -e`.
+# Whitelist to printable ASCII + a narrow set; cap length to 64 chars.
+_sanitize_display() {
+    local raw=$1
+    printf '%s' "$raw" | LC_ALL=C tr -c 'A-Za-z0-9 ._-' '?' | cut -c1-64
+}
+
 #=============================================================================
 # Network Detection
 #=============================================================================
@@ -253,7 +262,8 @@ lock_gnome_keyring() {
 }
 
 show_warning_screen() {
-    local network=$1
+    local network
+    network=$(_sanitize_display "$1")
 
     # Terminal warning
     cat <<EOF
@@ -483,8 +493,17 @@ SETUP:
 EOF
 }
 
+_coffee_cleanup() {
+    # If we modified iptables and the script is dying unexpectedly, put the
+    # firewall back. Without this, a ^C during lockdown left the user stuck.
+    if [[ -f "$DATA_DIR/.iptables_backup" ]] && is_root; then
+        iptables-restore < "$DATA_DIR/.iptables_backup" 2>/dev/null || true
+    fi
+}
+
 main() {
     local command="monitor"
+    trap _coffee_cleanup EXIT INT TERM
 
     # Parse options
     while [[ $# -gt 0 ]]; do
