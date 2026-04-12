@@ -45,3 +45,11 @@ Thumbs.db
 # Workspace artifacts
 repomix-output.xml
 notes.txt
+
+# Local planning / scratch docs (not tracked in the repo)
+docs/superpowers/
+
+# Editor / tooling state
+.claude/
+.aider*
+.cursorignore
