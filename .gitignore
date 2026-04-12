@@ -42,9 +42,6 @@ Thumbs.db
 # Log files
 *.log
 
-# Test/debug scripts
-tests/
-
 # Workspace artifacts
 repomix-output.xml
 notes.txt

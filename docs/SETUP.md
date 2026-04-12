@@ -636,3 +636,49 @@ Once setup is complete:
 6. ✅ Set up monitoring dashboards
 
 Enjoy your automated paranoia! 🔒
+
+---
+
+## Required: Encryption Password
+
+Scripts that store secrets (sockpuppet credentials, tokens, etc.) use
+`ENCRYPTION_PASSWORD` to derive the AES-256 key for `data/.secrets.enc`.
+Set it in `config/config.sh`:
+
+```bash
+export ENCRYPTION_PASSWORD="$(openssl rand -base64 48)"
+```
+
+- Minimum 32 random characters.
+- **Losing this value means losing access to everything in `data/.secrets.enc`.**
+  Back it up in a password manager — not in this repo.
+- Never commit the real value. `config/config.sh` is `.gitignore`d.
+- Previous versions fell back to `/etc/machine-id` when this was unset. That
+  fallback was removed: `machine-id` is mode 0444 (world-readable), which
+  meant any local user could decrypt `data/.secrets.enc`.
+
+## Config File Permissions
+
+`config/config.sh` is `source`d by every script. `lib/common.sh` now refuses
+to source the file if:
+
+- it is owned by a user other than you (or root), or
+- it has the group-write or other-write bit set.
+
+`install.sh` will `chmod 600` the file for you. If you hit a `REFUSING to
+source` error, run:
+
+```bash
+chmod 600 config/config.sh
+```
+
+## Log Rotation
+
+Each script writes to `logs/<name>_YYYYMMDD.log`. Nothing rotates these
+automatically. Add a weekly cleanup to cron:
+
+```cron
+0 4 * * 0 find /path/to/zero-trust-lifestyle/logs -type f -name '*.log' -mtime +30 -delete
+```
+
+Adjust `-mtime +30` to suit your retention policy.
